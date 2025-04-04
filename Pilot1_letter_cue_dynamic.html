@@ -1,0 +1,840 @@
+<!doctype html>
+<html>
+<head>
+  <title>Sequential Sperling</title>
+  <script src="jspsych-6.3.1/jspsych.js"></script>
+  <script src="jspsych-6.3.1/plugins/jspsych-preload.js"></script>
+  <script src="jspsych-6.3.1/plugins/jspsych-html-keyboard-response.js"></script>
+  <script src="jspsych-6.3.1/plugins/jspsych-instructions.js"></script>
+  <script src="jspsych-6.3.1/plugins/jspsych-survey-text.js"></script>
+  <script src="jspsych-6.3.1/plugins/jspsych-survey-likert.js"></script>
+  <script src="jspsych-6.3.1/plugins/jspsych-fullscreen.js"></script>
+  <link href="jspsych-6.3.1/css/jspsych.css" rel="stylesheet" type="text/css"></link>
+   <script src="https://code.jquery.com/jquery-3.5.1.min.js" integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0=" crossorigin="anonymous"></script>
+   <script type="text/javascript" src="lib/jspsych-pavlovia-3.2.5.js"></script>
+</head>
+<body>
+
+</body>
+<script>
+/* ------------------------------------
+Chapter 1: Defining useful functions
+------------------------------------ */
+/* Randomize array in-place using Durstenfeld shuffle algorithm
+reference: https://stackoverflow.com/questions/2450954/how-to-randomize-shuffle-a-javascript-array */
+function shuffleArray(array) {
+  for (var i = array.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var temp = array[i];
+    array[i] = array[j];
+    array[j] = temp;
+  }
+}
+
+/* Sampling without replacement from an array */
+function sample_without_replacement(number_of_samples, array) { //Keeps array intact
+  if (number_of_samples > array.length) {
+    console.log("Sample_without_replacement asked for more samples than items in the array");
+  } else {
+    var copy_array = []
+    for (x of array) {
+      copy_array.push(x)
+    }
+    list_of_samples = [];
+    for (i=1; i<=number_of_samples; i++) {
+      var randomIndex = Math.floor(Math.random()*copy_array.length);
+      list_of_samples.push(copy_array[randomIndex]);
+      copy_array.splice(randomIndex,1);
+    }
+  return list_of_samples;
+  }
+}
+
+/* ------------------------------------
+Chapter 2: Experiment parameters and variables
+------------------------------------ */
+var online_offline = 0; // 0 if run offline, 1 if run online on Pavlovia
+
+/* These are the two main parameters to change around */
+var possible_letters = ['Q','W','E','R','T','Y','U','I','O','P','A','S','D','F','G','H','J','K','L','Z','X','C','V','B','N','M'];
+//TEST to see how many letters remain:
+console.log("Number of possible letters: " + possible_letters.length);
+
+var number_of_letters_in_array = 12; //This is the number of letters in the array, when changing check the number of div rows
+
+/* Experimental conditions and trial list */
+//Factors
+var letter_pres_durations = [50];
+var cue_delays = [0, 133, 266, 400];
+
+//Numbers of trials
+var trial_repetitions_per_block = 12 //A block is a set of trials with the same recall type (either free_recall or cued_recall)
+var trials_per_block = trial_repetitions_per_block*letter_pres_durations.length*cue_delays.length
+var blocks_per_condition = 2
+
+/* ------------------------------------
+Chapter 3: Experiment structure: Creating necessary variables and setting them to default where appliccable--> This is part of Ch5: timeline creation. This should contain necessary variables in their default positions (letter positions etc.)
+------------------------------------ */
+/* First, experiment-wide parameters */
+//Randomising block presentation order
+var recall_block_order = [] //0 is cued_recall, 1 is free_recall
+recall_block_order.push(Math.round(Math.random()))
+for (x=1; x<2*blocks_per_condition; x+=2) { //2*blocks_per_condition because there are two trial types (free_recall and cued_recall)
+  recall_block_order[x] = 1-recall_block_order[0]
+}
+for (x=2; x<2*blocks_per_condition; x+=2) {
+  recall_block_order[x] = recall_block_order[0]
+}
+console.log(recall_block_order) //TEST
+
+//Creating trial lists per block
+var block_trial_list = []; //Used to be cued_recall_trial_list
+for (x of letter_pres_durations) {
+  for (y of cue_delays) {
+    for (z=0; z< trial_repetitions_per_block; z++) {
+      factors = [x, y];
+      block_trial_list.push(factors);
+    }
+  }
+}
+
+/* Second, creating trial-specific variables */
+// Making stimulus names of all possible letters
+var stimuli_names = [];
+for (x of possible_letters) {
+  var temp = ''
+  temp = "letters2/"+x+".png"
+  stimuli_names.push(temp)
+}
+stimuli_names.push("letters2/0_cue_border_bottom.png")
+stimuli_names.push("letters2/0_cue_border_left.png")
+stimuli_names.push("letters2/0_cue_border_right.png")
+stimuli_names.push("letters2/0_cue_border_top.png")
+stimuli_names.push("letters2/0_cue_bottom.png")
+stimuli_names.push("letters2/0_cue_left.png")
+stimuli_names.push("letters2/0_cue_right.png")
+stimuli_names.push("letters2/0_cue_top.png")
+stimuli_names.push("letters2/0.png") //This is the blank stimulus
+stimuli_names.push("letters2/0_cue_2.png") // Currently a fat one to make it stand out more
+
+// Making a letter order list
+letter_positions = [];
+for (x=0; x<number_of_letters_in_array; x++) {
+  letter_positions.push(x)
+}
+
+// Creating default div elements (only spaces) to display trial letters
+var row_array1 = [];
+for (x=0; x<4; x++) {
+  row_array1.push(stimuli_names[stimuli_names.length-2]) //The second-to-last stimulus in the stimuli_names array is the 0 or blank stimulus
+}
+var row_array2 = [];
+for (x=0; x<4; x++) {
+  row_array2.push(stimuli_names[stimuli_names.length-2])
+}
+var row_array3 = [];
+for (x=0; x<4; x++) {
+  row_array3.push(stimuli_names[stimuli_names.length-2])
+}
+var row0 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png>';
+var row1 = '<div id=\"imgp\"><img src=letters2/0_border.png>';
+var row2 = '<div id=\"imgp\"><img src=letters2/0_border.png>';
+var row3 = '<div id=\"imgp\"><img src=letters2/0_border.png>';
+var row4 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png>';
+
+/* ------------------------------------
+Chapter 4: Other experiment elements
+------------------------------------ */
+//Generating the experiment variables in lists to be accessed during trials
+var block_list = []; //contains block objects with all the necessary variables
+var block_num = 0;
+for (a of recall_block_order) {
+  if (a == 0) { //Block is cued recall
+    var block_var_list = {}
+    block_var_list.block_number = block_num
+    block_var_list.recall_type = "cued recall";
+    block_var_list.block_factors_list_shuffled = [];
+    block_var_list.trial_letter_lists = [];
+    block_var_list.letter_pres_order_lists = [];
+    block_var_list.cue_letter_list = [];
+    for (x of block_trial_list) { //For each trial in the block:
+      block_var_list.block_factors_list_shuffled.push(x); //add the factors to block_trial_list_shuffled
+      var trial_letter_list = sample_without_replacement(number_of_letters_in_array, possible_letters);
+      block_var_list.trial_letter_lists.push(trial_letter_list);
+      var letter_pres_order = [];
+      for (y of letter_positions) {
+        letter_pres_order.push(y);
+      }
+      shuffleArray(letter_pres_order);
+      block_var_list.letter_pres_order_lists.push(letter_pres_order);
+      var cued_letter = sample_without_replacement(1,trial_letter_list);
+      block_var_list.cue_letter_list.push(cued_letter[0]);
+    }
+    shuffleArray(block_var_list.block_factors_list_shuffled);
+    block_list.push(block_var_list);
+  } else if (a == 1) { //Block is free recall
+    var block_var_list = {}
+    block_var_list.block_number = block_num
+    block_var_list.recall_type = 'free recall'
+    block_var_list.block_factors_list_shuffled = []
+    block_var_list.trial_letter_lists = []
+    block_var_list.letter_pres_order_lists = []
+    for (x of block_trial_list) { //For each trial in the block:
+      block_var_list.block_factors_list_shuffled.push(x) //add the factors to block_trial_list_shuffled
+      var trial_letter_list = sample_without_replacement(number_of_letters_in_array, possible_letters)
+      block_var_list.trial_letter_lists.push(trial_letter_list)
+      var letter_pres_order = []
+      for (y of letter_positions) {
+        letter_pres_order.push(y)
+      }
+      shuffleArray(letter_pres_order)
+      block_var_list.letter_pres_order_lists.push(letter_pres_order)
+    }
+    shuffleArray(block_var_list.block_factors_list_shuffled)
+    block_list.push(block_var_list)
+  }
+  block_num++
+}
+console.log(block_list)
+
+var empty_row0 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+var empty_row1 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+var empty_row2 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+var empty_row3 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+var empty_row4 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+
+var empty_grid = {
+  type: 'html-keyboard-response',
+  stimulus: empty_row0 + empty_row1 + empty_row2 + empty_row3 + empty_row4,
+  trial_duration: 500,
+  response_ends_trial: false,
+  on_start: function () { $('body').css('cursor', 'none') }
+}
+
+/* Practice trials set-up */
+var cued_recall_instructions = {
+  type: 'html-keyboard-response',
+  stimulus: '<p>The next block is cued recall.<br>Press any key to see a practice trial.'
+}
+var free_recall_instructions = {
+  type: 'html-keyboard-response',
+  stimulus: '<p>The next block is free recall.<br>Press any key to see a practice trial.'
+}
+
+var practice_order = [4,11,9,2,10,6,8,7,1,0,5,3] //0A 1B 2C 3D 4E 5F 6G 7H 8I 9J 10K 11L
+var practice_letters = ['J','I','D','L','A','K','F','H','G','C','E','B']
+var practice_row0 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+var practice_row1 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+var practice_row2 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+var practice_row3 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+var practice_row4 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+var practice_row_array0 = ['letters2/0_border.png','letters2/0_border.png','letters2/0_border.png','letters2/0_border.png','letters2/0_border.png','letters2/0_border.png']
+var practice_row_array1 = ['letters2/0.png','letters2/0.png','letters2/0.png','letters2/0.png']
+var practice_row_array2 = ['letters2/0.png','letters2/0.png','letters2/0.png','letters2/0.png']
+var practice_row_array3 = ['letters2/0.png','letters2/0.png','letters2/0.png','letters2/0.png']
+var practice_row_array4 = ['letters2/0_border.png','letters2/0_border.png','letters2/0_border.png','letters2/0_border.png','letters2/0_border.png','letters2/0_border.png']
+var practice_cued_letter = 'L'
+
+var practice_cued_recall_answer = {
+  type: 'survey-text',
+  questions: [{prompt: 'Please enter the cued letter and press enter.<br>You don\'t have to worry about capitalising', required: true, columns: 1, name: 'Subj_answer'}],
+  on_finish: function(data) {
+    data.practice_correct = 0
+    if (data.response.Subj_answer[0].toUpperCase() == practice_cued_letter) {
+      data.practice_correct = 1
+      console.log('correct: ' + data.response.Subj_answer)
+    } else {
+      data.practice_corerct += 0
+      console.log('incorrect: ' + data.response.Subj_answer)
+    }
+    console.log(data.practice_correct)
+  }
+}
+
+var practice_free_recall_answer = {
+  type: 'survey-text',
+  questions: [{prompt: 'Please enter the presented letters and press enter.<br>You don\'t have to worry about capitalising', required: true, columns: 12, name: 'Subj_answers'}],
+  on_finish: function(data) {
+    data.practice_correct = 0
+    for (var x=0; x<12; x++) {
+      if (data.response.Subj_answers[x] == undefined) {
+        data.practice_correct += 0
+      } else if (data.response.Subj_answers[x] == " ") {
+        data.practice_correct += 0
+      } else if (practice_letters.includes(data.response.Subj_answers[x].toUpperCase())) {
+        data.practice_correct ++
+        console.log('correct: '+ data.response.Subj_answers[x])
+      } else {
+        data.practice_correct += 0
+        console.log('incorrect: ' + data.response.Subj_answers[x])
+      }
+      console.log(data.practice_correct)
+    }
+  }
+}
+
+var press_enter = {
+  type: 'html-keyboard-response',
+  stimulus: 'Are you ready?<br>Press enter to begin the block'
+}
+
+var fixation = {
+    type: 'html-keyboard-response',
+    stimulus: '<p style="font-size: 48px;">+</p>',
+    choices: jsPsych.NO_KEYS,
+    trial_duration: 500,
+    on_start: function () { $('body').css('cursor', 'none') }
+};
+
+/* ------------------------------------
+Chapter 5: Timeline creation and displaying experiment
+------------------------------------ */
+var timeline = [];
+
+if (online_offline == 1){
+  // init connection with pavlovia.org
+  var pavlovia_init = {
+      type: "pavlovia",
+      command: "init"
+  };
+  timeline.push(pavlovia_init);
+}
+
+var welcome = {
+  type: "html-keyboard-response",
+  stimulus: "<h2>Welcome!</h2><p>Press any key to begin the experiment.</p>"
+};
+timeline.push(welcome);
+
+var preload = {
+  type: "preload",
+  images: stimuli_names
+};
+timeline.push(preload)
+
+timeline.push({
+  type: 'fullscreen',
+  fullscreen_mode: true
+});
+
+var introduction = {
+  type: 'instructions', //<h1>, <h2> are headers, <hr> introduces a horizontal separation line, <br> is a line break, <p> indicates a paragraph (line break before), a comma creates a new page
+  pages: [
+    '<p>Thank you for participating in the<br><h1>Sequential Sperling Experiment</h1><hr></p><p>Researcher: Jochem Koopmans (jochem.koopmans@student.ru.nl)<br>Supervisors: Sushrut Thorat (s.thorat@psych.ru.nl)'+
+    '<br>Marius Peelen (m.peelen@donders.ru.nl)</p><p>Duration: 20mins (approx.)<br>Payment: N/A</p><p>Click next to proceed.</p>',
+    '<p>Before starting the experiment, please enter your prolific ID and answer some demographic questions</p>'
+  ],
+  show_clickable_nav: true
+}
+timeline.push(introduction)
+
+var demographic_questions = {
+  type: 'survey-text',
+  questions: [
+    {prompt: "What is your Prolific ID?", name: 'ProlID'},
+    {prompt: "What is your age?", name: 'Age'},
+    {prompt: "What is your gender?", placeholder:'Male/Female/Other/Prefer not to disclose', name: 'Gender'}
+  ]
+}
+timeline.push(demographic_questions)
+
+var trial_instructions = {
+  type: 'instructions',
+  pages: [
+    '<p><h2>Experiment set-up:</h2></p><p>The experiment has two types of trials: Cued recall and Free recall.<br>These are presented in alternating blocks, four in total.<br>Each block will take '+
+    'approximately 5 minutes, you can take rests between each block.<br>Each block starts with a practice trial.</p><p>Click next to learn how a trial works.</p>',
+    '<p><h2>Trial explanation:</h2></p><p>In every trial, twelve letters will randomly be flashed in a 3x4 grid pattern.</p><p>For cued recall trials,<br>a cue follows after all letters are flashed.<br>'+
+    'It will indicate one of the twelve letters, it is your task to report which one it was.</p><p>For free recall trials,<br>no cue will be presented.<br>Your task is to '+
+    'report all twelve flashed letters.</p>',
+    '<p><h2>Good luck,<br>Try and get as many letters as you can!</h2>A final tip: Presentation will be very fast, so keep your eyes on a fixed spot and let the letters make their impressions.</p><p>Click next to start the experiment and see the first practice trial.</p>'
+  ],
+  show_clickable_nav: true
+}
+timeline.push(trial_instructions)
+
+/* ---------- BLOCK AND TRIAL PRESENTATION START HERE ----------- */
+
+for (block of block_list) {
+  if (block.recall_type == "cued recall") {
+    timeline.push(cued_recall_instructions) //Present instructions
+    timeline.push(fixation)
+    timeline.push(empty_grid)
+    for (place of practice_order) { //trial display
+      if (place<4) {
+        practice_row_array1[place] = 'letters2/'+practice_letters[place]+'.png'
+      } else if (place<8) {
+        practice_row_array2[place-4] = 'letters2/'+practice_letters[place]+'.png'
+      } else { //if place<12
+        practice_row_array3[place-8] = 'letters2/'+practice_letters[place]+'.png'
+      }
+      for (x of practice_row_array1) {
+        practice_row1 += '<img src = ' + x + '>'
+      }
+      practice_row1 += '<img src=letters2/0_border.png></div>'
+      for (x of practice_row_array2) {
+        practice_row2 += '<img src = ' + x + '>'
+      }
+      practice_row2 += '<img src=letters2/0_border.png></div>'
+      for (x of practice_row_array3) {
+        practice_row3 += '<img src = ' + x + '>'
+      }
+      practice_row3 += '<img src=letters2/0_border.png></div>'
+
+      var practice_trial = {
+        type: 'html-keyboard-response',
+        stimulus: practice_row0 + practice_row1 + practice_row2 + practice_row3 + practice_row4,
+        trial_duration: 50,
+        response_ends_trial: false,
+        on_start: function () { $('body').css('cursor', 'none') }
+      }
+      timeline.push(practice_trial)
+      practice_row_array1.fill('letters2/0.png') //resets the rows to default (empty)
+      practice_row_array2.fill('letters2/0.png')
+      practice_row_array3.fill('letters2/0.png')
+      practice_row1 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+      practice_row2 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+      practice_row3 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+    }
+    for (x of practice_row_array1) {
+      practice_row1 += '<img src='+x+'>'
+    }
+    practice_row1 += '<img src=letters2/0_border.png></div>'
+    for (x of practice_row_array2) {
+      practice_row2 += '<img src='+x+'>'
+    }
+    practice_row2 += '<img src=letters2/0_border.png></div>'
+    for (x of practice_row_array3) {
+      practice_row3 += '<img src='+x+'>'
+    }
+    practice_row3 += '<img src=letters2/0_border.png></div>'
+    var practice_cue_delay = {
+      type: 'html-keyboard-response',
+      stimulus: practice_row0 + practice_row1 + practice_row2 + practice_row3 + practice_row4,
+      trial_duration: 50,
+      response_ends_trial: false,
+      on_start: function () { $('body').css('cursor', 'none') }
+    }
+    timeline.push(practice_cue_delay)
+    practice_row0 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_cue_border_top.png><img src=letters2/0_border.png></div>'
+    practice_row1 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_cue_left.png><img src=letters2/0_cue_2.png><img src=letters2/0_cue_border_right.png></div>' //Cues the top right
+    practice_row2 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_cue_bottom.png><img src=letters2/0_border.png></div>'
+
+    var practice_cue_pres = {
+      type: 'html-keyboard-response',
+      stimulus: practice_row0 + practice_row1 + practice_row2 + practice_row3 + practice_row4, //needs one of the rows to be updated with the cue
+      trial_duration: 500, //cue duration de Gardelle et al.: 300, Sperling used 500ms
+      response_ends_trial: false,
+      on_start: function () { $('body').css('cursor', 'none') }
+    }
+    timeline.push(practice_cue_pres)
+    timeline.push(practice_cued_recall_answer)
+    timeline.push(press_enter)
+    practice_row0 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+    practice_row1 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+    practice_row2 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+    practice_row3 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+    practice_row4 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+
+    for (a in block.block_factors_list_shuffled) { //For every trial
+      timeline.push(fixation)
+      timeline.push(empty_grid)
+      for (position of block.letter_pres_order_lists[a]) { //trial display
+        if (position<4) {
+          row_array1[position] = stimuli_names[possible_letters.indexOf(block.trial_letter_lists[a][position])]
+        } else if (position<8) {
+          row_array2[position-4] = stimuli_names[possible_letters.indexOf(block.trial_letter_lists[a][position])] //position-4 but +1 because index[0] is cue column
+        } else { //if position<12
+          row_array3[position-8] = stimuli_names[possible_letters.indexOf(block.trial_letter_lists[a][position])] //position-8 but +1 because index[0] is cue column
+        }
+        for (d of row_array1) {
+          row1 += '<img src = ' + d + '>'
+        }
+        row1 += '<img src=letters2/0_border.png></div>'
+        for (d of row_array2) {
+          row2 += '<img src = ' + d + '>'
+        }
+        row2 += '<img src=letters2/0_border.png></div>'
+        for (d of row_array3) {
+          row3 += '<img src = ' + d + '>'
+        }
+        row3 += '<img src=letters2/0_border.png></div>'
+        var trial_presentation = {
+          type: 'html-keyboard-response',
+          stimulus: row0 + row1 + row2 + row3 + row4,
+          trial_duration: block.block_factors_list_shuffled[a][0],
+          response_ends_trial: false,
+          on_start: function () { $('body').css('cursor', 'none') }
+        }
+        timeline.push(trial_presentation)
+        row_array1.fill('letters2/0.png') //resets the rows to default (empty)
+        row_array2.fill('letters2/0.png')
+        row_array3.fill('letters2/0.png')
+        row1 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+        row2 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+        row3 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+      }
+      row1 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+      row2 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+      row3 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+      var cue_pres_delay = {
+        type: 'html-keyboard-response',
+        stimulus: row0 + row1 + row2 + row3 + row4,
+        trial_duration: block.block_factors_list_shuffled[a][1],
+        response_ends_trial: false,
+        on_start: function () { $('body').css('cursor', 'none') }
+      }
+      timeline.push(cue_pres_delay)
+      row1 = '<div id=\"imgp\">' //Does not add cue columns yet because they depend on the cue
+      row2 = '<div id=\"imgp\">'
+      row3 = '<div id=\"imgp\">'
+      //Putting cues in the list
+      if (block.trial_letter_lists[a].indexOf(block.cue_letter_list[a])==0) {
+        row0 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_cue_border_top.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+        row1 = '<div id=\"imgp\"><img src=letters2/0_cue_border_left.png><img src=letters2/0_cue_2.png><img src=letters2/0_cue_right.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row2 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_cue_bottom.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row3 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row4 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+      } else if (block.trial_letter_lists[a].indexOf(block.cue_letter_list[a])==1) {
+        row0 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_cue_border_top.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+        row1 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_cue_left.png><img src=letters2/0_cue_2.png><img src=letters2/0_cue_right.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row2 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0_cue_bottom.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row3 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row4 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+      } else if (block.trial_letter_lists[a].indexOf(block.cue_letter_list[a])==2) {
+        row0 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_cue_border_top.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+        row1 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0_cue_left.png><img src=letters2/0_cue_2.png><img src=letters2/0_cue_right.png><img src=letters2/0_border.png></div>'
+        row2 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_cue_bottom.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row3 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row4 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+      } else if (block.trial_letter_lists[a].indexOf(block.cue_letter_list[a])==3) {
+        row0 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_cue_border_top.png><img src=letters2/0_border.png></div>'
+        row1 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_cue_left.png><img src=letters2/0_cue_2.png><img src=letters2/0_cue_border_right.png></div>'
+        row2 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_cue_bottom.png><img src=letters2/0_border.png></div>'
+        row3 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row4 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+      } else if (block.trial_letter_lists[a].indexOf(block.cue_letter_list[a])==4) {
+        row0 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+        row1 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_cue_top.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row2 = '<div id=\"imgp\"><img src=letters2/0_cue_border_left.png><img src=letters2/0_cue_2.png><img src=letters2/0_cue_right.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row3 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_cue_bottom.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row4 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+      } else if (block.trial_letter_lists[a].indexOf(block.cue_letter_list[a])==5) {
+        row0 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+        row1 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0_cue_top.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row2 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_cue_left.png><img src=letters2/0_cue_2.png><img src=letters2/0_cue_right.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row3 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0_cue_bottom.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row4 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+      } else if (block.trial_letter_lists[a].indexOf(block.cue_letter_list[a])==6) {
+        row0 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+        row1 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_cue_top.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row2 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0_cue_left.png><img src=letters2/0_cue_2.png><img src=letters2/0_cue_right.png><img src=letters2/0_border.png></div>'
+        row3 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_cue_bottom.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row4 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+      } else if (block.trial_letter_lists[a].indexOf(block.cue_letter_list[a])==7) {
+        row0 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+        row1 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_cue_top.png><img src=letters2/0_border.png></div>'
+        row2 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_cue_left.png><img src=letters2/0_cue_2.png><img src=letters2/0_cue_border_right.png></div>'
+        row3 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_cue_bottom.png><img src=letters2/0_border.png></div>'
+        row4 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+      } else if (block.trial_letter_lists[a].indexOf(block.cue_letter_list[a])==8) {
+        row0 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+        row1 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row2 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_cue_top.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row3 = '<div id=\"imgp\"><img src=letters2/0_cue_border_left.png><img src=letters2/0_cue_2.png><img src=letters2/0_cue_right.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row4 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_cue_border_bottom.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+      } else if (block.trial_letter_lists[a].indexOf(block.cue_letter_list[a])==9) {
+        row0 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+        row1 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row2 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0_cue_top.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row3 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_cue_left.png><img src=letters2/0_cue_2.png><img src=letters2/0_cue_right.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row4 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_cue_border_bottom.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+      } else if (block.trial_letter_lists[a].indexOf(block.cue_letter_list[a])==10) {
+        row0 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+        row1 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row2 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_cue_top.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row3 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0_cue_left.png><img src=letters2/0_cue_2.png><img src=letters2/0_cue_right.png><img src=letters2/0_border.png></div>'
+        row4 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_cue_border_bottom.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+      } else if (block.trial_letter_lists[a].indexOf(block.cue_letter_list[a])==11) {
+        row0 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+        row1 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_border.png></div>'
+        row2 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_cue_top.png><img src=letters2/0_border.png></div>'
+        row3 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0.png><img src=letters2/0.png><img src=letters2/0_cue_left.png><img src=letters2/0_cue_2.png><img src=letters2/0_cue_border_right.png></div>'
+        row4 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_cue_border_bottom.png><img src=letters2/0_border.png></div>'
+      }
+
+      var cue = {
+        type: 'html-keyboard-response',
+        stimulus: row0+row1+row2+row3+row4,
+        trial_duration: 500,
+        response_ends_trial: false,
+        on_start: function () { $('body').css('cursor', 'none') }
+      }
+      timeline.push(cue)
+      row_array1.fill('letters2/0.png') //resets the rows to default (empty)
+      row_array2.fill('letters2/0.png')
+      row_array3.fill('letters2/0.png')
+      row0 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+      row1 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+      row2 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+      row3 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+      row4 = '<div id=\"imgp\"><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png><img src=letters2/0_border.png></div>'
+
+      var cued_recall_answer_display = { //Does the autocomplete occur for every user?
+        type: 'survey-text',
+        questions: [{prompt: 'Please enter the cued letter and press enter', required: true, columns: 4, name: 'Subj_answer'}],
+        data: {block_num: block.block_number, cor_ans: block.cue_letter_list[a], letter_pres_dur: block.block_factors_list_shuffled[a][0], cue_delay_dur: block.block_factors_list_shuffled[a][1], presented_letters: block.trial_letter_lists[a], letter_order: block.letter_pres_order_lists[a]}, //Needs the following: Trial_number, subj_correctness(V), cued_letters(V), subj_input(V), cued_row(V), letter_pres_times (V), cue_delay (V), rt(V), trial_letters(V), presentation_order(V)
+        on_start: function () { $('body').css('cursor', 'none') },
+        on_finish: function(data) { //Checks correctness
+          data.correctness = ''
+          data.subj_correct = 0
+          console.log(data.response)
+          console.log(data.cor_ans)
+          if (data.response.Subj_answer[0].toUpperCase() == data.cor_ans) {
+            data.correctness = 'correct'
+            data.subj_correct ++
+          } else if (data.response.Subj_answer[0] == " ") {
+            data.correctness = 'guess'
+          } else if (data.presented_letters.includes(data.response.Subj_answer[0].toUpperCase())) {
+            data.correctness = 'wrong letter'
+          } else {
+            data.correctness = 'incorrect'
+          }
+          console.log(data.correctness)
+        }
+      }
+      timeline.push(cued_recall_answer_display)
+    }
+    var perf_feedback = {
+      type: 'html-keyboard-response',
+      stimulus: function() {
+        var cued_recall_correct_list = jsPsych.data.get().filter({trial_type:'survey-text'}).last(trials_per_block).values() //Returns a list of 4 (trials_per_block) objects. Choose subj_correct and add together.
+        var cued_recall_correct = 0
+        for (x of cued_recall_correct_list) {
+          cued_recall_correct += x.subj_correct
+        }
+        var fb_perc = Math.round(cued_recall_correct/trials_per_block*100)
+        var fb_string = ''
+        if (fb_perc <25) {
+          var fb_string = 'You got ' + cued_recall_correct + ' out of ' + trials_per_block + ' (' + fb_perc + '%) correct.<br>Try and do better!'
+        } else if (fb_perc <50) {
+          var fb_string = 'You got ' + cued_recall_correct + ' out of ' + trials_per_block + ' (' + fb_perc + '%) correct.<br>You\'re doing alright. See if you can improve!'
+        } else {
+          var fb_string = 'You got ' + cued_recall_correct + ' out of ' + trials_per_block + ' (' + fb_perc + '%) correct.<br>Good job, keep at it!'
+        }
+        console.log(cued_recall_correct_list)
+        console.log(cued_recall_correct)
+        return fb_string
+      },
+      trial_duration: 10000,
+      response_ends_trial: true,
+      on_start: function () { $('body').css('cursor', 'none') }
+    }
+    timeline.push(perf_feedback)
+  } else { //if recall type is free recall
+    timeline.push(free_recall_instructions) //Present instructions
+    timeline.push(fixation)
+    timeline.push(empty_grid)
+    for (place of practice_order) { //trial display
+      if (place<4) {
+        practice_row_array1[place] = 'letters2/'+practice_letters[place]+'.png'
+      } else if (place<8) {
+        practice_row_array2[place-4] = 'letters2/'+practice_letters[place]+'.png'
+      } else { //if c<12
+        practice_row_array3[place-8] = 'letters2/'+practice_letters[place]+'.png'
+      }
+      for (stimulus of practice_row_array1) {
+        practice_row1 += '<img src = ' + stimulus + '>'
+      }
+      practice_row1 += '<img src=letters2/0_border.png></div>'
+      for (stimulus of practice_row_array2) {
+        practice_row2 += '<img src = ' + stimulus + '>'
+      }
+      practice_row2 += '<img src=letters2/0_border.png></div>'
+      for (stimulus of practice_row_array3) {
+        practice_row3 += '<img src = ' + stimulus + '>'
+      }
+      practice_row3 += '<img src=letters2/0_border.png></div>'
+
+      var practice_trial = {
+        type: 'html-keyboard-response',
+        stimulus: practice_row0 + practice_row1 + practice_row2 + practice_row3 + practice_row4,
+        trial_duration: 50,
+        response_ends_trial: false,
+        on_start: function () { $('body').css('cursor', 'none') }
+      }
+      timeline.push(practice_trial)
+      practice_row_array1.fill('letters2/0.png') //resets the rows to default (empty)
+      practice_row_array2.fill('letters2/0.png')
+      practice_row_array3.fill('letters2/0.png')
+      practice_row1 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+      practice_row2 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+      practice_row3 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+    }
+    var practice_cue_delay = {
+      type: 'html-keyboard-response',
+      stimulus: practice_row0 + practice_row1 + practice_row2 + practice_row3 + practice_row4,
+      trial_duration: 50,
+      response_ends_trial: false,
+      on_start: function () { $('body').css('cursor', 'none') }
+    }
+    timeline.push(practice_cue_delay)
+    timeline.push(practice_free_recall_answer)
+    timeline.push(press_enter)
+
+    for (a in block.block_factors_list_shuffled) { //For every trial
+      timeline.push(fixation)
+      timeline.push(empty_grid)
+      for (place of block.letter_pres_order_lists[a]) { //trial display
+        if (place<4) {
+          row_array1[place] = stimuli_names[possible_letters.indexOf(block.trial_letter_lists[a][place])]
+        } else if (place<8) {
+          row_array2[place-4] = stimuli_names[possible_letters.indexOf(block.trial_letter_lists[a][place])]
+        } else { //if c<12
+          row_array3[place-8] = stimuli_names[possible_letters.indexOf(block.trial_letter_lists[a][place])]
+        }
+        for (d of row_array1) {
+          row1 += '<img src = ' + d + '>'
+        }
+        row1 += '<img src=letters2/0_border.png></div>'
+        for (d of row_array2) {
+          row2 += '<img src = ' + d + '>'
+        }
+        row2 += '<img src=letters2/0_border.png></div>'
+        for (d of row_array3) {
+          row3 += '<img src = ' + d + '>'
+        }
+        row3 += '<img src=letters2/0_border.png></div>'
+
+        var trial_presentation = {
+          type: 'html-keyboard-response',
+          stimulus: row0 + row1 + row2 + row3 + row4,
+          trial_duration: block.block_factors_list_shuffled[a][0],
+          response_ends_trial: false,
+          on_start: function () { $('body').css('cursor', 'none') }
+        }
+        timeline.push(trial_presentation)
+        row_array1.fill('letters2/0.png') //resets the rows to default (empty)
+        row_array2.fill('letters2/0.png')
+        row_array3.fill('letters2/0.png')
+        row1 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+        row2 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+        row3 = '<div id=\"imgp\"><img src=letters2/0_border.png>'
+      }
+      var cue_pres_delay = {
+        type: 'html-keyboard-response',
+        stimulus: row0 + row1 + row2 + row3 + row4,
+        trial_duration: block.block_factors_list_shuffled[a][1],
+        response_ends_trial: false,
+        on_start: function () { $('body').css('cursor', 'none') }
+      }
+      timeline.push(cue_pres_delay)
+
+      var free_recall_answer_display = {
+        type: 'survey-text',
+        questions: [{prompt: 'Please enter the presented letters and press enter', required: true, columns: 12, name: 'Subj_answers'}],
+        data: {block_num: block.block_number, cor_ans: block.trial_letter_lists[a], letter_pres_dur: block.block_factors_list_shuffled[a][0], cue_delay_dur: block.block_factors_list_shuffled[a][1], presented_letters: block.trial_letter_lists[a], letter_order: block.letter_pres_order_lists[a]}, //Needs the following: Trial number, subj_correctness (V),subj_input (V), letter_pres_times (V), cue delay (V), rt (V), trial letters (V), presentation_order (V)
+        on_start: function () { $('body').css('cursor', 'none') },
+        on_finish: function(data) {
+          data.correctness = []
+          data.subj_correct = 0
+          console.log(data.response)
+          for (var x=0; x<12; x++) {
+            if (data.response.Subj_answers[x] == undefined) {
+              data.correctness.push('guess')
+              console.log('guess: ' + data.response.Subj_answers[x])
+            } else if (data.response.Subj_answers[x] == " ") {
+              data.correctness.push('guess')
+              console.log('guess: ' + data.response.Subj_answers[x])
+            } else if (data.response.Subj_answers[x].toUpperCase() == data.cor_ans[data.letter_order[x]]) {
+              data.correctness.push('correct')
+              data.subj_correct ++
+              console.log('correct: '+ data.response.Subj_answers[x])
+            } else if (data.cor_ans.includes(data.response.Subj_answers[x].toUpperCase())) {
+              data.correctness.push('wrong location')
+              data.subj_correct ++
+              console.log('wrong location: ' + data.response.Subj_answers[x])
+            } else {
+              data.correctness.push('incorrect')
+              console.log('incorrect: ' + data.response.Subj_answers[x])
+            }
+          }
+          console.log(data.correctness)
+        }
+      }
+      timeline.push(free_recall_answer_display)
+    }
+    var perf_feedback = {
+      type: 'html-keyboard-response',
+      stimulus: function() {
+        var free_recall_correct_list = jsPsych.data.get().filter({trial_type:'survey-text'}).last(trials_per_block).values()
+        var free_recall_correct = 0
+        for (x of free_recall_correct_list) {
+          free_recall_correct += x.subj_correct
+        }
+        var fb_perc = free_recall_correct/12
+        fb_perc = fb_perc/trials_per_block
+        fb_perc = Math.round(fb_perc*100)
+        var fb_string = ''
+        if (fb_perc <25) {
+          var fb_string = 'You got ' + free_recall_correct + ' out of ' + trials_per_block*12 + ' (' + fb_perc + '%) possible letters.<br>Try and do better!'
+        } else if (fb_perc <50) {
+          var fb_string = 'You got ' + free_recall_correct + ' out of ' + trials_per_block*12 + ' (' + fb_perc + '%) possible letters.<br>You\'re doing alright. See if you can improve!'
+        } else {
+          var fb_string = 'You got ' + free_recall_correct + ' out of ' + trials_per_block*12 + ' (' + fb_perc + '%) possible letters.<br>Good job, keep at it!'
+        }
+        console.log(free_recall_correct_list)
+        console.log(free_recall_correct)
+        return fb_string
+      },
+      trial_duration: 10000,
+      response_ends_trial: true,
+      on_start: function () { $('body').css('cursor', 'none') }
+    }
+    timeline.push(perf_feedback)
+  }
+}
+
+/* Getting some feedback and telling PPs the experiment ended */
+var fb_message = {
+  type: 'instructions',
+  pages: ['<p>The main part is over, thanks for your effort!</p>Please click \'next\' to answer some feedback questions'],
+  show_clickable_nav: true,
+  on_start: function () { $('body').css('cursor', '') }
+}
+var fb_questions = {
+  type: 'survey-likert',
+  questions: [{prompt: "For cued recall trials: How well did the cue single out a specific letter?", labels: ["not at all"," "," "," ","very well"], name:'cue_visibility'},
+  {prompt: "How difficult did you find the cued recall trials?", labels:["1: very difficult","2","3","4: medium","5","6","7: very easy"], name: 'cue_difficulty'},
+  {prompt: "How difficult did you find the free recall trials?", labels:["1: very difficult","2","3","4: medium","5","6","7: very easy"], name: 'free_difficulty'}],
+  preamble: 'Feedback questions',
+  on_start: function () { $('body').css('cursor', '') }
+}
+var fb_comment = {
+  type: 'survey-text',
+  questions: [{prompt:'Do you have any other feedback for me?<br>Think about experiment duration, instructions, design, etc.<br>Thanks!', required:false, rows:6, name:'comments'}],
+  on_start: function () { $('body').css('cursor', '') }
+}
+timeline.push(fb_message)
+timeline.push(fb_questions)
+timeline.push(fb_comment)
+
+// Close connection to pavlovia and push data.
+
+if (online_offline==1){
+  /* finish connection with pavlovia.org */
+  var subj_id = Math.floor((Math.random() * 100000) + 1);
+  var pavlovia_finish = {
+    type: "pavlovia",
+    command: "finish",
+    participantId: subj_id
+  };
+  timeline.push(pavlovia_finish);
+}
+
+/* Displaying the experiment */
+jsPsych.init({
+  timeline: timeline
+});
+
+</script>
+</html>
