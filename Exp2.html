@@ -1,0 +1,645 @@
+<!doctype html>
+<html>
+<head>
+  <title>Letter Memory Experiment</title>
+  <script src="jspsych-6.3.1/jspsych.js"></script>
+  <script src="jspsych-6.3.1/plugins/jspsych-preload.js"></script>
+  <script src="jspsych-6.3.1/plugins/jspsych-html-keyboard-response.js"></script>
+  <script src="jspsych-6.3.1/plugins/jspsych-instructions.js"></script>
+  <script src="jspsych-6.3.1/plugins/jspsych-survey-text.js"></script>
+  <script src="jspsych-6.3.1/plugins/jspsych-survey-multi-select.js"></script>
+  <script src="jspsych-6.3.1/plugins/jspsych-survey-likert.js"></script>
+  <script src="jspsych-6.3.1/plugins/jspsych-fullscreen.js"></script>
+  <script src="jspsych-6.3.1/plugins/jspsych-html-button-response.js"></script>
+  <link href="jspsych-6.3.1/css/jspsych.css" rel="stylesheet" type="text/css"></link>
+   <script src="https://code.jquery.com/jquery-3.5.1.min.js" integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0=" crossorigin="anonymous"></script>
+   <script type="text/javascript" src="lib/jspsych-pavlovia-3.2.5.js"></script>
+</head>
+<body>
+
+</body>
+<script>
+/* ------------------------------------
+Chapter 1: Defining useful functions
+------------------------------------ */
+/* Randomize array in-place using Durstenfeld shuffle algorithm
+reference: https://stackoverflow.com/questions/2450954/how-to-randomize-shuffle-a-javascript-array */
+function shuffleArray(array) {
+  for (var i = array.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var temp = array[i];
+    array[i] = array[j];
+    array[j] = temp;
+  }
+}
+
+/* Sampling without replacement from an array */
+function sample_without_replacement(number_of_samples, array) { //Keeps array intact
+  if (number_of_samples > array.length) {
+    console.log("Sample_without_replacement asked for more samples than items in the array");
+  } else {
+    var copy_array = []
+    for (x of array) {
+      copy_array.push(x)
+    }
+    list_of_samples = [];
+    for (i=1; i<=number_of_samples; i++) {
+      var randomIndex = Math.floor(Math.random()*copy_array.length);
+      list_of_samples.push(copy_array[randomIndex]);
+      copy_array.splice(randomIndex,1);
+    }
+  return list_of_samples;
+  }
+}
+
+/* ------------------------------------
+Chapter 2: Experiment parameters
+------------------------------------ */
+var online_offline = 0; // 0 if run offline, 1 if run online on Pavlovia
+
+/* These are the two main parameters to change around */
+var possible_letters = ['Q','W','E','R','T','Y','U','I','O','P','A','S','D','F','G','H','J','K','L','Z','X','C','V','B','N','M']
+var possible_numbers = ['0','1','2','3','4','5','6','7','8','9']
+var invertible_letters = ['A','B','C','D','E','F','G','J','K','L','Q','R','T','V','Y']
+
+/* Experimental conditions and trial list */
+var grid_duration = 300
+//var cue_delays = []
+var cue_duration = 300
+
+//Numbers of trials
+var number_of_blocks = 4
+var repetitions_per_block = 4
+
+/* ------------------------------------
+Chapter 3: Other experiment elements
+------------------------------------ */
+//Making stimulus names for all possible letters
+var stimuli_names = []
+for (x of possible_letters) {
+  var temp = ''
+  temp = 'letters/'+x+'.png'
+  temp2 = 'letters/'+x+'_inv.png'
+  stimuli_names.push(temp)
+  stimuli_names.push(temp2)
+}
+for (x of possible_numbers){
+  var temp = ''
+  temp = 'letters/'+x+'.png'
+  stimuli_names.push(temp)
+}
+stimuli_names.push('letters/cue_left.png')
+stimuli_names.push('letters/cue_right.png')
+stimuli_names.push('letters/_.png')
+stimuli_names.push('letters/ex_recog.png')
+stimuli_names.push('letters/instr_recall.png')
+
+//Setting default row arrays and row div elements
+var row_array1 = ['letters/K.png','letters/Z.png','letters/E.png','letters/8.png']
+var row_array2 = ['letters/A_inv.png','letters/V.png','letters/9.png','letters/Y.png']
+var row_array3 = ['letters/B.png','letters/N.png','letters/Q.png','letters/C.png']
+var row1 = '<div id=\"imgp\"><img src=letters/_.png>'
+var row2 = '<div id=\"imgp\"><img src=letters/_.png>'
+var row3 = '<div id=\"imgp\"><img src=letters/_.png>'
+var ex_row1 = '<div id=\"imgp\"><img src=letters/K.png><img src=letters/Z.png><img src=letters/E.png><img src=letters/8.png></div>'
+var ex_row2 = '<div id=\"imgp\"><img src=letters/A_inv.png><img src=letters/V.png><img src=letters/9.png><img src=letters/Y.png></div>'
+var ex_row3 = '<div id=\"imgp\"><img src=letters/B.png><img src=letters/N.png><img src=letters/Q.png><img src=letters/C.png></div>'
+var empty_row = '<div id=\"imgp\"><img src=letters/_.png><img src=letters/_.png><img src=letters/_.png><img src=letters/_.png></div>'
+var cued_row = '<div id=\"imgp\"><img src=letters/cue_left.png><img src=letters/_.png><img src=letters/_.png><img src=letters/_.png><img src=letters/_.png>'+
+'<img src=letters/cue_right.png></div>'
+var cue_array = [empty_row,empty_row,empty_row]
+//Making template lists for letter positions, inversion-trials, and cued-rows that can be shuffled for each trial
+var letter_positions = [0,1,2,3,4,5,6,7,8,9,10,11]
+
+var template_inversion_list = [0] //Excluding the first two practice trials
+for (x=1; x<repetitions_per_block; x++) {
+  template_inversion_list[x] = 1-template_inversion_list[x-1]
+}
+
+var template_cue_list = [Math.floor(Math.random()*3)]
+for (x=1; x<repetitions_per_block; x++) {
+  if (template_cue_list[x-1]+1<3) {
+    template_cue_list[x]=template_cue_list[x-1]+1
+  } else {
+    template_cue_list[x]=0
+  }
+}
+
+var recog_array = [0,1,2,3] //Used to shuffle the recognition questions
+
+//Often recurring non-changing trial elements
+var press_enter = {
+  type: 'html-keyboard-response',
+  stimulus: 'Are you ready?<br>Press enter to begin the block'
+}
+
+var iti = {
+  type: 'html-keyboard-response',
+  stimulus: '<div id=\"imgp\"><img src=letters/_.png></div>',
+  trial_duration: 750,
+  response_ends_trial: false,
+  on_start: function () { $('body').css('cursor', 'none') }
+}
+
+var fixation = {
+  type: 'html-keyboard-response',
+  stimulus: '<p style="font-size: 48px;">+</p>',
+  choices: jsPsych.NO_KEYS,
+  trial_duration: 500,
+  on_start: function () { $('body').css('cursor', 'none') }
+}
+
+var instructions_over = {
+  type: 'html-keyboard-response',
+  stimulus: '<p>These were the practice trials.<br>Are you ready?</p>Press any key to start the block.',
+}
+
+/* ------------------------------------
+Chapter 4: Experiment structure: Generating blocks and trial lists
+------------------------------------ */
+/* Creating trial-level information, variables, and factors */
+var block_list = [] //contains an object for every block. The object contains the information per trial
+var block_num = 0
+for (block = 0; block<number_of_blocks; block++) {
+  var varlist = {}
+  varlist.block_number = block_num
+  //grid:
+  varlist.letter_lists = []
+  varlist.inversion_list = []
+  shuffleArray(template_inversion_list)
+  for (x=0; x<template_inversion_list.length; x++) { varlist.inversion_list[x] = template_inversion_list[x] }
+  varlist.special_pos_list = []
+  varlist.special_let_list = []
+  //recall:
+  varlist.cue_row_list = []
+  shuffleArray(template_cue_list)
+  for (x=0; x<template_cue_list.length; x++) { varlist.cue_row_list[x] = template_cue_list[x] }
+  varlist.cued_let_lists = []
+  //recognition:
+  varlist.recognition_lists = []
+  varlist.recog_order_lists = []
+  varlist.recog_corr_list = []
+  for (var rep=0; rep<repetitions_per_block; rep++) { //For each trial in the block
+    //Grid:
+    var letter_list = sample_without_replacement(5,possible_letters)
+    var cued_letters = []
+    while (cued_letters.length<4) {
+      var hold_letter = sample_without_replacement(1,possible_letters)[0]
+      if (letter_list.includes(hold_letter) || cued_letters.includes(hold_letter)) {
+        continue
+      } else {
+        cued_letters.push(hold_letter)
+      }
+    }
+    varlist.cued_let_lists[rep] = cued_letters
+    var specials_list = sample_without_replacement(2,possible_numbers)
+    while (specials_list.length<3) {
+      var hold_letter = sample_without_replacement(1,invertible_letters)[0]
+      if (letter_list.includes(hold_letter) || cued_letters.includes(hold_letter)) {
+        continue
+      } else {
+        specials_list.push(hold_letter)
+        varlist.special_let_list.push(hold_letter)
+      }
+    }
+    var recog_list = [specials_list[2],specials_list[2]+'_inv']
+    if (varlist.inversion_list[rep] == 0) {
+      varlist.recog_corr_list[rep] = specials_list[2]
+    } else {
+      varlist.recog_corr_list[rep] = specials_list[2]+'_inv'
+      specials_list[2] = specials_list[2]+'_inv'
+    }
+    letter_list.push(specials_list[0],specials_list[1],specials_list[2]) //Now 8 items long
+    //Recall:
+    shuffleArray(letter_list)
+    for (var x=3; x>=0; x--) {
+      letter_list.splice((varlist.cue_row_list[rep]*4), 0, cued_letters[x])
+    }
+    varlist.letter_lists[rep] = letter_list
+    varlist.special_pos_list[rep] = letter_list.indexOf(specials_list[2])
+    //Recognition:
+    while (varlist.recognition_lists.length<=rep) {
+      var hold_letter = sample_without_replacement(1,invertible_letters)[0]
+      if (letter_list.includes(hold_letter) || cued_letters.includes(hold_letter) || recog_list.includes(hold_letter)) {
+        continue
+      } else {
+        recog_list.push(hold_letter,hold_letter+'_inv')
+        varlist.recognition_lists.push(recog_list)
+      }
+    }
+    shuffleArray(recog_array)
+    varlist.recog_order_lists[rep] = []
+    for (x=0;x<recog_array.length;x++) { varlist.recog_order_lists[rep][x] = recog_array[x] }
+  }
+  block_list.push(varlist)
+  block_num++
+}
+console.log(block_list)
+
+/* ===== Creating analysis variables ===== */
+// Recall performance
+var recall = {}
+recall.correct_place = [0,0,0,0]
+recall.correct_row = [0,0,0,0]
+recall.in_grid = [0,0,0,0]
+recall.not_in_grid = [0,0,0,0]
+recall.guess = [0,0,0,0]
+recall.inv_focus = [0,0,0,0]
+recall.num_focus = [0,0,0,0]
+var recog = {}
+recog.upr_selupr = [0,0,0,0]
+recog.upr_selinv = [0,0,0,0]
+recog.inv_selupr = [0,0,0,0]
+recog.inv_selinv = [0,0,0,0]
+recog.nshown_selupr = [0,0,0,0]
+recog.nshown_selinv = [0,0,0,0]
+
+var recall_corr_perc = 0
+var recog_corr_perc = 0
+
+/* ------------------------------------
+Chapter 5: Timeline creation and displaying the experiment
+------------------------------------ */
+var timeline = []
+
+if (online_offline == 1) { //init connection with pavlovia.org
+  var pavlovia_init = {
+    type: 'pavlovia',
+    command: 'init'
+  }
+  timeline.push(pavlovia_init)
+}
+
+var welcome = {
+  type: "html-keyboard-response",
+  stimulus: "<h2>Welcome!</h2><p>Press any key to begin the experiment.</p>"
+};
+//timeline.push(welcome)
+
+var preload = {
+  type: 'preload',
+  images: stimuli_names
+}
+timeline.push(preload)
+
+timeline.push({
+  type: 'fullscreen',
+  fullscreen_mode: true
+})
+
+/* ----------------------------------------
+     Experiment instruction
+---------------------------------------- */
+var introduction = {
+  type: 'instructions',
+  pages: [
+    '<p>Thank you for participating in the<br><h1>Letter Memory Experiment</h1><hr></p><p>Researcher: Jochem Koopmans (jochem.koopmans@ru.nl)<br>Supervisors:'+
+    ' Sushrut Thorat (s.thorat@psych.ru.nl)'+
+    '<br>Marius Peelen (m.peelen@donders.ru.nl)</p><p>Duration: 45 minutes (approx.)<br>Payment: TBD GB pounds</p><p>Click next to proceed.</p>',
+    '<p>Before starting the experiment, please enter your Prolific ID and answer some demographic questions</p>'
+  ],
+show_clickable_nav: true
+}
+//timeline.push(introduction)
+
+var demographic_questions = {
+  type: 'survey-text',
+  questions: [
+    {prompt: "What is your Prolific ID?", name: "ProlID"},
+    {prompt: "What is your age?", name: "Age"},
+    {prompt: "What is your gender?", name: "Gender"}
+  ]
+}
+//timeline.push(demographic_questions)
+
+var trial_instruction = {
+  type: 'instructions',
+  pages: [
+    '<h2>Experiment setup:</h2><p>If you have any secondary screens, please disconnect them.<br>They may interfere with how the experiment is displayed.'+
+    '<p>The experiment consists of 4 blocks of 30 trials. Next, a typical trial will be explained.',
+    '<h2>Trial setup:</h2><p>1. You will see a 3x4 grid of letters, numbers, inverted letters.<br>2. A cue will indicate one of the three rows.'+
+    '<br>3. You will be asked to enter the four items that were in the cued row.<br>4. You will be asked which of four alternatives you recognise from the'+
+    ' grid you just saw.</p><p>If you click \'next\', you can click through a trial to see it in action.',
+    'First up is the grid, which is flashed for 300ms.'+ex_row1+ex_row2+ex_row3,
+    'The grid is followed by a cue, consisting of two grey dots around a row. In this case it is the bottom row:'+empty_row+empty_row+cued_row,
+    'After the cue, you should report the (4) items that were in the cued row:'+
+    '<br><i>Please enter numbers by their numerals (e.g. 1,2) and inverted letters as their upright version.</i>'+
+    '<p><div id=\imgp0\"><img src=letters/instr_recall.png></div></p>',
+    'The trial ends with a four-alternative recognition question.<br>You should select the <em>one</em> item that was in the grid you just saw.', //ADD screenshot here
+    '<p><em>Are you ready?</em></p><p>Trials are quite hard, so performances of ~40% are not uncommon.<br>'+
+    'You get performance feedback after every block.<p>It helps if you focus on the fixation cross<br>and let the items make their impressions.</p>',
+    '<h3>Those were the instructions!</h3><p>By clicking \'next\', you will start two practice trials.<br>The first block will start once you completed them.</p>'+
+    'Click \'next\' to get started!'
+  ],
+  show_clickable_nav: true
+}
+//timeline.push(trial_instruction)
+
+//timeline.push(iti)
+//timeline.push(fixation)
+
+var p_trial1 = {
+  type: 'html-keyboard-response',
+  stimulus:
+  '<div id=\"imgp\"><img src=letters/_.png><img src=letters/T.png><img src=letters/R.png><img src=letters/7.png><img src=letters/H.png><img src=letters/_.png></div>'+
+  '<div id=\"imgp\"><img src=letters/_.png><img src=letters/D.png><img src=letters/J.png><img src=letters/G.png><img src=letters/M.png><img src=letters/_.png></div>'+
+  '<div id=\"imgp\"><img src=letters/_.png><img src=letters/E.png><img src=letters/L.png><img src=letters/K.png><img src=letters/0.png><img src=letters/_.png></div>',
+  trial_duration: grid_duration,
+  response_ends_trial: false,
+  on_start: function () { $('body').css('cursor', 'none') }
+}
+//timeline.push(p_trial1)
+
+var p_cue1 = {
+  type: 'html-keyboard-response',
+  stimulus: empty_row+cued_row+empty_row,
+  trial_duration: cue_duration,
+  response_ends_trial: false,
+  on_start: function () { $('body').css('cursor', 'none') }
+}
+//timeline.push(p_cue1)
+
+var cued_answer = {
+  type: 'survey-text',
+  questions: [{prompt: 'Please key in the cued items and press enter', required: true, columns:4, name: 'subj_ans'}],
+  data: {letters: ['T','R','7','H','D','J','G','M','E','L','K','0'], cued_row: 2, cued_let: ['D','J','G','M']},
+  on_start: function () { $('body').css('cursor', 'default') }
+}
+//timeline.push(cued_answer)
+
+shuffleArray(recog_array)
+var p_recog = ['K','K_inv','A','A_inv']
+
+var p_recog1 = {
+  type: 'html-button-response',
+  stimulus: 'Please select <em>one</em> letter which you think was in the grid.',
+  choices: ['<div id=\"imgp\"><img src=letters/'+p_recog[recog_array[0]]+'.png></div>','<div id=\"imgp\"><img src=letters/'+p_recog[recog_array[1]]+'.png>',
+    '<div id=\"imgp\"><img src=letters/'+p_recog[recog_array[2]]+'.png>','<div id=\"imgp\"><img src=letters/'+p_recog[recog_array[3]]+'.png></div>']
+}
+//timeline.push(p_recog1)
+
+//timeline.push(iti)
+//timeline.push(fixation)
+
+var p_trial2 = {
+  type: 'html-keyboard-response',
+  stimulus:
+  '<div id=\"imgp\"><img src=letters/_.png><img src=letters/O.png><img src=letters/J.png><img src=letters/Y.png><img src=letters/L.png><img src=letters/_.png></div>'+
+  '<div id=\"imgp\"><img src=letters/_.png><img src=letters/F.png><img src=letters/M.png><img src=letters/T_inv.png><img src=letters/S.png><img src=letters/_.png></div>'+
+  '<div id=\"imgp\"><img src=letters/_.png><img src=letters/U.png><img src=letters/8.png><img src=letters/9.png><img src=letters/G.png><img src=letters/_.png></div>',
+  trial_duration: grid_duration,
+  response_ends_trial: false,
+  on_start: function () { $('body').css('cursor', 'none') }
+}
+//timeline.push(p_trial2)
+
+var p_cue2 = {
+  type: 'html-keyboard-response',
+  stimulus: cued_row+empty_row+empty_row,
+  trial_duration: cue_duration,
+  response_ends_trial: false,
+  on_start: function () { $('body').css('cursor', 'none') }
+}
+//timeline.push(p_cue2)
+
+var cued_answer = {
+  type: 'survey-text',
+  questions: [{prompt: 'Please key in the cued items and press enter', required: true, columns:4, name: 'subj_ans'}],
+  data: {letters: ['O','J','Y','L','F','M','T_inv','S','U','8','9','G'], cued_row: 0, cued_let: ['O','J','Y','L']},
+  on_start: function () { $('body').css('cursor', 'default') }
+}
+//timeline.push(cued_answer)
+
+shuffleArray(recog_array)
+var p_recog = ['T','T_inv','R','R_inv']
+
+var p_recog2 = {
+  type: 'html-button-response',
+  stimulus: 'Please select <em>one</em> letter which you think was in the grid.',
+  choices: ['<div id=\"imgp\"><img src=letters/'+p_recog[recog_array[0]]+'.png></div>','<div id=\"imgp\"><img src=letters/'+p_recog[recog_array[1]]+'.png>',
+    '<div id=\"imgp\"><img src=letters/'+p_recog[recog_array[2]]+'.png>','<div id=\"imgp\"><img src=letters/'+p_recog[recog_array[3]]+'.png></div>'],
+  post_trial_gap: 250 //Prevents an accidental double-tap from unwantingly starting the first block.
+}
+//timeline.push(p_recog2)
+
+var instructions_over = {
+  type: 'html-keyboard-response',
+  stimulus: '<p>You are now familiar with the trials.</p><p>Remember, there are four blocks of 30 trials.<br>'+
+    'You will get feedback and a small break after every block.</p><p>Press any key to start the first block.</p>',
+}
+
+/* ------------------------------------------
+        Trial display
+-------------------------------------------*/
+for (block of block_list) {
+  for (trial = 0; trial<repetitions_per_block; trial++) {
+    timeline.push(iti)
+    timeline.push(fixation)
+    //Updating row arrays with new letters
+    for (letter in block.letter_lists[trial]) {
+      if (letter<4) {
+        row_array1[letter] = 'letters/' + block.letter_lists[trial][letter] + '.png'
+      } else if (letter<8) {
+        row_array2[letter-4] = 'letters/' + block.letter_lists[trial][letter] + '.png'
+      } else {
+        row_array3[letter-8] = 'letters/' + block.letter_lists[trial][letter] + '.png'
+      }
+    }
+    //Changing the letter-displaying div elements with the new letters
+    for (stim of row_array1) { row1 += '<img src=' + stim + '>' }
+    row1 += '<img src=letters/_.png></div>'
+    for (stim of row_array2) { row2 += '<img src=' + stim + '>' }
+    row2 += '<img src=letters/_.png></div>'
+    for (stim of row_array3) { row3 += '<img src=' + stim + '>' }
+    row3 += '<img src=letters/_.png></div>'
+
+    var grid = {
+      type: 'html-keyboard-response',
+      stimulus: row1+row2+row3,
+      trial_duration: grid_duration,
+      response_ends_trial: false,
+      on_start: function () { $('body').css('cursor', 'none') }
+    }
+    timeline.push(grid)
+    //Updating the to-be cued rows
+    cue_array[block.cue_row_list[trial]] = cued_row
+    row1 = cue_array[0]
+    row2 = cue_array[1]
+    row3 = cue_array[2]
+    var cue = {
+      type: 'html-keyboard-response',
+      stimulus: row1+row2+row3,
+      trial_duration: cue_duration,
+      response_ends_trial: false,
+      on_start: function () { $('body').css('cursor', 'none') }
+    }
+    timeline.push(cue)
+    //Resetting the cue array to empty rows
+    cue_array.fill(empty_row)
+    //Resetting the rows to empty
+    row1 = '<div id=\"imgp\"><img src=letters/_.png>'
+    row2 = '<div id=\"imgp\"><img src=letters/_.png>'
+    row3 = '<div id=\"imgp\"><img src=letters/_.png>'
+    //Getting the cued answer
+    var recall_answer = {
+      type: 'survey-text',
+      questions: [{prompt: 'Please key in the cued items and press enter', required: true, columns:4, name: 'subj_ans'}],
+      data: {block_no: block.block_number, grid: block.letter_lists[trial], inverted_trial: block.inversion_list[trial], spec_let_pos: block.special_pos_list[trial],
+        spec_let_id: block.special_let_list[trial], cued_row: block.cue_row_list[trial], cued_letters: block.cued_let_lists[trial]},
+      on_start: function () { $('body').css('cursor', 'default') },
+      on_finish: function(data) {
+        //lowercasing
+        data.grid_lower = []
+        for (x of data.grid) { data.grid_lower.push(x.toLowerCase()) }
+        data.cued_letters_lower = []
+        for (x of data.cued_letters) { data.cued_letters_lower.push(x.toLowerCase()) }
+        data.correct_loc = 0
+        data.correct_row = 0
+        data.in_grid = 0
+        data.not_in_grid = 0
+        data.guess = 0
+        data.subj_entries = []
+        data.inv_focus = 0
+        data.num_focus = 0
+        //Transforming subj answers into a list
+        for (var entry=0; entry<data.response.subj_ans.length; entry++) { data.subj_entries.push(data.response.subj_ans[entry]) }
+        //Analysing answers
+        for (var guess = data.subj_entries.length; guess<4; guess++) {data.guess++}
+        for (answer in data.subj_entries) {
+          if (data.subj_entries[answer] == data.cued_letters[answer] || data.subj_entries[answer] == data.cued_letters_lower[answer]) {
+            data.correct_loc++ //Letter was correct and in correct location
+          } else if (data.cued_letters.includes(data.subj_entries[answer]) || data.cued_letters_lower.includes(data.subj_entries[answer])) {
+            data.correct_row++ //Letter was indeed in the cued row
+          } else if (data.grid.includes(data.subj_entries[answer]) || data.grid_lower.includes(data.subj_entries[answer]) ||
+              data.grid.includes(data.subj_entries[answer]+'_inv') || data.grid_lower.includes(data.subj_entries[answer]+'_inv')) {
+            data.in_grid++ //Letter was in the grid
+          } else {
+            data.not_in_grid++ //Letter was not in the grid
+          }
+          if (possible_numbers.includes(data.subj_entries[answer]) && data.grid.includes(data.subj_entries[answer])) { data.num_focus++ }
+          if (data.inverted_trial ==1 && data.subj_entries[answer].toLowerCase() == data.spec_let_id.toLowerCase()) { data.inv_focus++ }
+        }
+        console.log(data)
+      }
+    }
+    timeline.push(recall_answer)
+    //Getting the recognition answer
+    var recog_answer = {
+      type: 'html-button-response',
+      stimulus: 'Please select <em>one</em> letter which you think was in the grid.',
+      choices: ['<div id=\"imgp\"><img src=letters/'+block.recognition_lists[trial][block.recog_order_lists[trial][0]]+'.png></div>',
+        '<div id=\"imgp\"><img src=letters/'+block.recognition_lists[trial][block.recog_order_lists[trial][1]]+'.png>',
+        '<div id=\"imgp\"><img src=letters/'+block.recognition_lists[trial][block.recog_order_lists[trial][2]]+'.png>',
+        '<div id=\"imgp\"><img src=letters/'+block.recognition_lists[trial][block.recog_order_lists[trial][3]]+'.png></div>'],
+      data: {block_no: block.block_number, alternatives: block.recognition_lists[trial], order: block.recog_order_lists[trial], correct: block.recog_corr_list[trial]},
+      on_finish: function(data) {
+        data.sel_option = data.alternatives[data.order[data.response]]
+        //Which of the alternatives does the selected letter belong to?
+        data.upr_selupr = 0
+        data.upr_selinv = 0
+        data.inv_selinv = 0
+        data.inv_selupr = 0
+        data.nshown_upr = 0
+        data.nshown_inv = 0
+        if (data.alternatives.indexOf(data.sel_option) == 2) { data.nshown_upr++ }
+        else if (data.alternatives.indexOf(data.sel_option) == 3) { data.nshown_inv++ }
+        else if (data.alternatives.indexOf(data.sel_option) == 1 && data.sel_option == data.correct) { data.inv_selinv++ }
+        else if (data.alternatives.indexOf(data.sel_option) == 1 && data.correct.length<2) { data.inv_selupr++ }
+        else if (data.alternatives.indexOf(data.sel_option) == 0 && data.sel_option == data.correct) { data.upr_selupr++ }
+        else if (data.alternatives.indexOf(data.sel_option) == 0 && data.correct.length>2) { data.upr_selinv++ }
+        console.log(data)
+      }
+    }
+    timeline.push(recog_answer)
+  }
+  //Trials in the block over, present feedback and tell subject to take a small break.
+  var fb = {
+    type: 'html-keyboard-response',
+    stimulus: function() {
+      var recall_data = jsPsych.data.get().filter({trial_type:'survey-text'}).last(repetitions_per_block).values()
+      var recog_data = jsPsych.data.get().filter({trial_type:'html-button-response'}).last(repetitions_per_block).values()
+      for (var tr=0; tr<repetitions_per_block; tr++) {
+        //Feedback about both recall and recognition
+        recall.correct_place[recall_data[0].block_no] += recall_data[tr].correct_loc
+        recall.correct_row[recall_data[0].block_no] += recall_data[tr].correct_row
+        recall.in_grid[recall_data[0].block_no] += recall_data[tr].in_grid
+        recall.not_in_grid[recall_data[0].block_no] += recall_data[tr].not_in_grid
+        recall.guess[recall_data[0].block_no] += recall_data[tr].guess
+        recall.inv_focus[recall_data[0].block_no] += recall_data[tr].inv_focus
+        recall.num_focus[recall_data[0].block_no] += recall_data[tr].num_focus
+        //Also calculate what needs calculating for the analysis (have a good look at matlab)
+        recog.upr_selupr[recog_data[0].block_no] += recog_data[tr].upr_selupr
+        recog.upr_selinv[recog_data[0].block_no] += recog_data[tr].upr_selinv
+        recog.inv_selupr[recog_data[0].block_no] += recog_data[tr].inv_selupr
+        recog.inv_selinv[recog_data[0].block_no] += recog_data[tr].inv_selinv
+        recog.nshown_selupr[recog_data[0].block_no] += recog_data[tr].nshown_upr
+        recog.nshown_selinv[recog_data[0].block_no] += recog_data[tr].nshown_inv
+      }
+      recall_corr_perc = ((recall.correct_place[recall_data[0].block_no] + recall.correct_row[recall_data[0].block_no])*100)/(repetitions_per_block*4)
+      recog_corr_perc = ((recog.upr_selupr[recog_data[0].block_no]+recog.inv_selinv[recog_data[0].block_no])*100)/repetitions_per_block
+      fb_string = '<p>You got ' + recall_corr_perc + '% of the cued items.<br>' + recog_corr_perc + '% of the items you chose had indeed been presented.</p>'+
+        '<p>Take a short rest if you need to,</p><p>press any key to continue</p>'
+      return fb_string
+    },
+    data: {block_number: block.block_number},
+    on_finish: function(data) {
+      data.recall = recall
+      data.recog = recog
+      data.recall_perc = recall_corr_perc
+      data.recog_perc = recog_corr_perc
+      console.log(data)
+    }
+  }
+  timeline.push(fb)
+}
+
+var strategy = {
+  type: 'survey-multi-select',
+  questions: [{prompt: 'While viewing the grid, what (if anything) did you pay attention to?',
+    options: ['I focused on a row that I guessed would be cued', 'I focused on a random row', 'I focused on the entire grid', 'I used a mix of the above three', 'Other'],
+    name: 'Grid strategy'},
+    {prompt: 'For the <strong>choice</strong> part of the trials, which strategy/ies did you use?',
+    options: ['I took letter orientation into account', 'I ignored letter orientation', 'I felt I was mostly completely guessing', 'I felt I mostly had some idea to decide my choice'],
+    name: 'Recognition strategy'}],
+  preamble: '<h2>The main part is finished!<br>Please answer these questions about the strategy/ies you used.</h2>'+
+    '<br>You can select multiple options,<br>there will be an opportunity to provide detailed feedback afterwards.'
+}
+timeline.push(strategy)
+
+var feedback = {
+  type: 'survey-text',
+  questions: [{prompt: 'You can leave additional feedback or comments here if you want.', rows: 4}]
+}
+timeline.push(feedback)
+
+/* --------------------------
+---     CHAPTER END       ---
+---------------------------*/
+// Close connection to pavlovia and push data.
+if (online_offline==1){
+  /* finish connection with pavlovia.org */
+  var subj_id = Math.floor((Math.random() * 100000) + 1);
+  var pavlovia_finish = {
+    type: "pavlovia",
+    command: "finish",
+    participantId: subj_id
+  };
+  timeline.push(pavlovia_finish);
+}
+
+/* Displaying the experiment */
+jsPsych.init({
+  timeline: timeline,
+  on_finish: function () {
+      var myclosescreen = document.createElement("div");
+      myclosescreen.innerHTML = "<p> The experiment is over!<br>Your data have been saved.</p>" +
+          "<p> Please click  <a href='https://app.prolific.co/submissions/complete?cc=155E8CCD'> this link to proceed to Prolific </a> </p>" +
+          "<p> Thanks for your participation!</p>";
+      myclosescreen.style.margin = "300px auto";
+      myclosescreen.className = "debrief";
+      document.body.appendChild(myclosescreen)
+  }
+});
+
+</script>
+</html>
